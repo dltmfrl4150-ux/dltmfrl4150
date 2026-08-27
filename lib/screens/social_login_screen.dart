@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../state/routine_library.dart';
 import '../theme/loopi_colors.dart';
@@ -44,13 +45,10 @@ class SocialLoginScreen extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   children: [
-                    Container(
-                      color: Colors.transparent,
-                      child: const AppLogo(height: 72),
-                    ),
+                    const AppLogo(height: 72),
                     const SizedBox(height: 16),
-                    const Text(
-                      '유튜브 구간 반복 학습 루틴',
+                    Text(
+                      'social_login.title'.tr(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: textMuted,
@@ -61,7 +59,7 @@ class SocialLoginScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 48),
                     _SocialButton(
-                      label: '카카오로 시작하기',
+                      label: 'social_login.login_kakao'.tr(),
                       backgroundColor: const Color(0xFFFEE500),
                       foregroundColor: const Color(0xFF191600),
                       icon: Icons.chat_bubble,
@@ -69,7 +67,7 @@ class SocialLoginScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _SocialButton(
-                      label: '구글로 시작하기',
+                      label: 'social_login.login_google'.tr(),
                       backgroundColor: panel,
                       foregroundColor: textPrimary,
                       icon: Icons.g_mobiledata,
@@ -78,7 +76,7 @@ class SocialLoginScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _SocialButton(
-                      label: '애플로 시작하기',
+                      label: 'social_login.login_apple'.tr(),
                       backgroundColor: panel,
                       foregroundColor: textPrimary,
                       icon: Icons.apple,
@@ -94,12 +92,12 @@ class SocialLoginScreen extends StatelessWidget {
                           foregroundColor: textMuted,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('게스트로 둘러보기'),
+                        child: Text('social_login.login_guest'.tr()),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      '계속 진행하면 LOOPI 이용약관 및 개인정보 처리방침에 동의하게 됩니다.',
+                    Text(
+                      'social_login.terms_agreement'.tr(),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Color(0xFF64626D), fontSize: 11),
                     ),

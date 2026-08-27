@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 const List<double> kPlaybackSpeeds = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0];
 
 /// Delay between loop iterations, in seconds.
-const List<int> kDelaySeconds = [3, 5, 10, 30, 60];
+const List<int> kDelaySeconds = [0, 1, 2, 3, 5, 10, 30, 60];
 
 /// Loop count of `-1` means infinite.
 const int kInfiniteLoop = -1;

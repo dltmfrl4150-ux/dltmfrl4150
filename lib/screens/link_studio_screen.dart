@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../models/routine_models.dart';
 import '../state/link_studio_session.dart';
@@ -208,7 +209,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
     if (id == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid YouTube URL or 11-character video ID.')),
+        SnackBar(content: Text('studio.url_placeholder'.tr())),
       );
       return;
     }
@@ -365,7 +366,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
     );
     widget.library.save(routine);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"$name" 루틴이 저장되었습니다.')),
+      SnackBar(content: Text('"$name" ${'studio.save_success'.tr()}')),
     );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -439,10 +440,10 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
                         child: ColoredBox(
                           color: Colors.black,
                           child: _inWidgetTest || _saveDialogOpen
-                              ? const Center(
+                              ? Center(
                                   child: Text(
-                                    'YouTube Player Placeholder',
-                                    style: TextStyle(color: Colors.white70),
+                                    'studio.player_placeholder'.tr(),
+                                    style: const TextStyle(color: Colors.white70),
                                   ),
                                 )
                               : player,
@@ -489,7 +490,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
             TextButton(
               onPressed: _session.isTesting ? null : _loadUrl,
               style: TextButton.styleFrom(foregroundColor: Colors.white, backgroundColor: LoopiColors.deepPurple),
-              child: const Text('Load'),
+              child: Text('studio.load'.tr()),
             ),
           ],
         ),
@@ -546,16 +547,16 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'A-B Loop Timeline',
-              style: TextStyle(fontWeight: FontWeight.w700, color: LoopiColors.ink),
+            Text(
+              'studio.timeline'.tr(),
+              style: const TextStyle(fontWeight: FontWeight.w700, color: LoopiColors.ink),
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Text('Start ${formatMmSs(range.start)}', style: const TextStyle(color: LoopiColors.muted, fontSize: 12)),
+                Text('${'studio.start'.tr()} ${formatMmSs(range.start)}', style: const TextStyle(color: LoopiColors.muted, fontSize: 12)),
                 const Spacer(),
-                Text('End ${formatMmSs(range.end)}', style: const TextStyle(color: LoopiColors.muted, fontSize: 12)),
+                Text('${'studio.end'.tr()} ${formatMmSs(range.end)}', style: const TextStyle(color: LoopiColors.muted, fontSize: 12)),
               ],
             ),
             RangeSlider(
@@ -587,17 +588,17 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Routine list',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    'studio.routine_list'.tr(),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                   ),
                 ),
                 IconButton.filled(
                   onPressed: testing ? null : _session.addSegment,
                   style: IconButton.styleFrom(backgroundColor: LoopiColors.deepPurple),
                   icon: const Icon(Icons.add, color: Colors.white),
-                  tooltip: 'Add section',
+                  tooltip: 'studio.add_section'.tr(),
                 ),
               ],
             ),
@@ -618,14 +619,14 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
                     fontWeight: FontWeight.w700,
                     color: LoopiColors.muted,
                   ),
-                  columns: const [
-                    DataColumn(label: Text('Section')),
-                    DataColumn(label: Text('Start')),
-                    DataColumn(label: Text('End')),
-                    DataColumn(label: Text('Speed')),
-                    DataColumn(label: Text('Loop')),
-                    DataColumn(label: Text('Delay')),
-                    DataColumn(label: Text('')),
+                  columns: [
+                    DataColumn(label: Text('studio.section'.tr())),
+                    DataColumn(label: Text('studio.start'.tr())),
+                    DataColumn(label: Text('studio.end'.tr())),
+                    DataColumn(label: Text('studio.speed'.tr())),
+                    DataColumn(label: Text('studio.loop'.tr())),
+                    DataColumn(label: Text('studio.delay'.tr())),
+                    const DataColumn(label: Text('')),
                   ],
                   rows: [
                     for (var i = 0; i < _session.segments.length; i++) _buildRow(i, testing),

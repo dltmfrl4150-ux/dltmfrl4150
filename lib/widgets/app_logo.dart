@@ -1,41 +1,32 @@
 import 'package:flutter/material.dart';
 
 class AppLogo extends StatelessWidget {
-  const AppLogo({
-    super.key,
-    this.width,
-    this.height,
-  });
-
   final double? width;
   final double? height;
 
-  static const String darkAsset = 'assets/images/Main LOGO(white).png';
+  const AppLogo({super.key, this.width, this.height});
 
   @override
   Widget build(BuildContext context) {
-    final fallbackSize = height ?? (width != null ? width! * 0.28 : 28);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final assetPath = isDark
+        ? 'assets/images/Main LOGO(white).png'
+        : 'assets/images/Main LOGO.png';
 
-    return ClipRRect(
-      child: Image(
-        image: const AssetImage(darkAsset),
-        width: width,
-        height: height,
+    return SizedBox(
+      width: width,
+      height: height ?? 32,
+      child: Image.asset(
+        assetPath,
         fit: BoxFit.contain,
-        opacity: const AlwaysStoppedAnimation(1.0),
         filterQuality: FilterQuality.medium,
-        errorBuilder: (context, error, stackTrace) {
-          return Text(
-            'LOOPI',
-            style: TextStyle(
-              fontSize: fallbackSize * 0.72,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-              height: 1,
-              color: Colors.white,
-            ),
-          );
-        },
+        errorBuilder: (context, error, stackTrace) => Text(
+          'LOOPI',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
       ),
     );
   }

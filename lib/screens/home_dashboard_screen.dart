@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../models/routine_models.dart';
 import '../state/routine_library.dart';
@@ -7,6 +8,8 @@ import '../utils/time_format.dart';
 import '../widgets/app_logo.dart';
 import 'link_studio_screen.dart';
 import 'practice_mode_screen.dart';
+
+enum SelectionMode { none, group, delete }
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key, required this.library});
@@ -53,12 +56,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         titleSpacing: 16,
-        title: Align(
+        title: const Align(
           alignment: Alignment.centerLeft,
-          child: Container(
-            color: Colors.transparent,
-            child: const AppLogo(height: 30),
-          ),
+          child: AppLogo(height: 30),
         ),
         actions: [
           IconButton(
@@ -98,27 +98,27 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         selectedIndex: _tabIndex == 2 ? 0 : _tabIndex,
         onDestinationSelected: _onTabSelected,
         indicatorColor: scheme.primary.withValues(alpha: 0.18),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: '홈',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bookmark_border),
-            selectedIcon: Icon(Icons.bookmark),
-            label: '내 루틴 보관함',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.movie_creation_outlined),
-            selectedIcon: Icon(Icons.movie_creation),
-            label: '스튜디오',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '설정',
-          ),
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'home.tab_home'.tr(), //
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.bookmark_outline),
+          selectedIcon: const Icon(Icons.bookmark),
+          label: 'library.title'.tr(),
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.movie_creation_outlined),
+          selectedIcon: Icon(Icons.movie_creation),
+          label: 'home.tab_studio'.tr(), 
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: 'home.tab_settings'.tr(), 
+        ),
         ],
       ),
     );
@@ -144,10 +144,10 @@ class _HomeTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       children: [
-        Text('좋은 하루예요,', style: TextStyle(color: muted, fontSize: 15)),
+        Text('home.greeting'.tr(), style: TextStyle(color: muted, fontSize: 15)),
         const SizedBox(height: 4),
         Text(
-          '오늘도 리듬을 이어가볼까요?',
+          'home.subtitle'.tr(),
           style: TextStyle(
             color: scheme.onSurface,
             fontSize: 26,
@@ -166,14 +166,14 @@ class _HomeTab extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '최근 연습한 루틴',
+              'home.recent_routines'.tr(),
               style: TextStyle(
                 color: scheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            TextButton(onPressed: () {}, child: const Text('전체 보기')),
+            TextButton(onPressed: () {}, child: Text('home.view_all'.tr())),
           ],
         ),
         const SizedBox(height: 8),
@@ -222,7 +222,7 @@ class _WeeklyStatsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '주간 학습 스트릭',
+            'home.weekly_stats'.tr(),
             style: TextStyle(
               color: scheme.onSurface,
               fontWeight: FontWeight.w700,
@@ -235,22 +235,22 @@ class _WeeklyStatsCard extends StatelessWidget {
               Expanded(
                 child: _StatCell(
                   icon: Icons.local_fire_department_rounded,
-                  label: '연속 학습',
-                  value: '5일',
+                  label: 'home.continuous_learning'.tr(),
+                  value: '5${'common.days'.tr()}',
                 ),
               ),
               Expanded(
                 child: _StatCell(
                   icon: Icons.timer_outlined,
-                  label: '이번 주',
-                  value: '42분',
+                  label: 'home.this_week'.tr(),
+                  value: '42${'common.minutes'.tr()}',
                 ),
               ),
               Expanded(
                 child: _StatCell(
                   icon: Icons.library_music_outlined,
-                  label: '저장 루틴',
-                  value: '$routineCount개',
+                  label: 'home.saved_routines'.tr(),
+                  value: '$routineCount',
                 ),
               ),
             ],
@@ -310,23 +310,23 @@ class _QuickActionCard extends StatelessWidget {
           color: LoopiColors.purple,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Row(
+        child: Row(
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '새 루틴 만들기',
+                    'home.quick_action'.tr(),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  const SizedBox(height: 6),
                   Text(
-                    '유튜브 링크 등록',
+                    'home.quick_action_subtitle'.tr(),
                     style: TextStyle(color: Color(0xFFE8E0FF), fontSize: 14),
                   ),
                 ],
@@ -364,7 +364,7 @@ class _EmptyRoutineCard extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                '아직 저장한 루틴이 없어요.\n첫 루틴을 만들어볼까요?',
+                'home.no_routines'.tr(),
                 style: TextStyle(color: scheme.onSurfaceVariant, height: 1.45),
               ),
             ),
@@ -379,10 +379,14 @@ class _RoutineCard extends StatelessWidget {
   const _RoutineCard({
     required this.routine,
     required this.onStart,
+    this.isSelected = false,
+    this.onTap,
   });
 
   final SavedRoutine routine;
   final VoidCallback onStart;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -392,66 +396,79 @@ class _RoutineCard extends StatelessWidget {
     final rangeLabel =
         '${formatMmSs(first.startSec)} – ${formatMmSs(last.endSec)} · ${routine.segments.length}개 구간';
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              'https://img.youtube.com/vi/${routine.videoId}/mqdefault.jpg',
-              width: 72,
-              height: 52,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected
+              ? Border.all(color: LoopiColors.purple, width: 2)
+              : null,
+        ),
+        child: Row(
+          children: [
+            if (isSelected)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(Icons.check_circle, color: LoopiColors.purple),
+              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                'https://img.youtube.com/vi/${routine.videoId}/mqdefault.jpg',
                 width: 72,
                 height: 52,
-                color: scheme.surfaceContainerHighest,
-                alignment: Alignment.center,
-                child: Icon(Icons.play_circle_fill_rounded, color: LoopiColors.purple),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 72,
+                  height: 52,
+                  color: scheme.surfaceContainerHighest,
+                  alignment: Alignment.center,
+                  child: Icon(Icons.play_circle_fill_rounded, color: LoopiColors.purple),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  routine.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  rangeLabel,
-                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    routine.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    rangeLabel,
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: onStart,
-            style: FilledButton.styleFrom(
-              backgroundColor: LoopiColors.purple,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              visualDensity: VisualDensity.compact,
-            ),
-            child: const Text('바로 시작'),
-          ),
-        ],
+            const SizedBox(width: 8),
+            if (onTap == null)
+              FilledButton(
+                onPressed: onStart,
+                style: FilledButton.styleFrom(
+                  backgroundColor: LoopiColors.purple,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: Text('home.start_practice'.tr()),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _LibraryTab extends StatelessWidget {
+class _LibraryTab extends StatefulWidget {
   const _LibraryTab({
     required this.library,
     required this.onCreateRoutine,
@@ -463,32 +480,171 @@ class _LibraryTab extends StatelessWidget {
   final ValueChanged<SavedRoutine> onStartRoutine;
 
   @override
+  State<_LibraryTab> createState() => _LibraryTabState();
+}
+
+class _LibraryTabState extends State<_LibraryTab> {
+  SelectionMode _selectionMode = SelectionMode.none;
+  final Set<String> _selectedIds = {};
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _enterSelectionMode(SelectionMode mode) {
+    setState(() {
+      _selectionMode = mode;
+      _selectedIds.clear();
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = SelectionMode.none;
+      _selectedIds.clear();
+    });
+  }
+
+  Future<void> _handleGroupConfirm() async {
+    if (_selectedIds.isEmpty) return;
+    
+    final nameController = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('library.create_group'.tr()),
+        content: TextField(
+          controller: nameController,
+          decoration: InputDecoration(hintText: 'library.group_name_hint'.tr()),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('library.cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, nameController.text.trim()),
+            child: Text('library.confirm'.tr()),
+          ),
+        ],
+      ),
+    );
+    
+    if (name?.isNotEmpty == true) {
+      widget.library.createGroup(name: name!, routineIds: _selectedIds.toList());
+    }
+    _exitSelectionMode();
+  }
+
+  Future<void> _handleDeleteConfirm() async {
+    if (_selectedIds.isEmpty) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('library.delete_confirm_title'.tr()),
+        content: Text('library.delete_confirm_message'.tr().replaceAll('N', '${_selectedIds.length}')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('library.cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('library.delete'.tr()),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      widget.library.deleteMany(_selectedIds);
+    }
+    _exitSelectionMode();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: library,
+      animation: widget.library,
       builder: (context, _) {
-        if (library.routines.isEmpty) {
+        if (widget.library.routines.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(24),
-            child: _EmptyRoutineCard(onTap: onCreateRoutine),
+            child: _EmptyRoutineCard(onTap: widget.onCreateRoutine),
           );
         }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        return Column(
           children: [
-            Text(
-              '내 루틴 보관함',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 16),
-            for (final routine in library.routines)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _RoutineCard(
-                  routine: routine,
-                  onStart: () => onStartRoutine(routine),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'library.title'.tr(),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const Spacer(),
+                  if (_selectionMode == SelectionMode.none) ...[
+                    IconButton(
+                      onPressed: () => _enterSelectionMode(SelectionMode.group),
+                      icon: const Icon(Icons.folder_shared),
+                      tooltip: '루틴 묶어서 저장',
+                    ),
+                    IconButton(
+                      onPressed: () => _enterSelectionMode(SelectionMode.delete),
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: '삭제',
+                    ),
+                  ] else ...[
+                    if (_selectionMode == SelectionMode.group)
+                      IconButton(
+                        onPressed: _handleGroupConfirm,
+                        icon: const Icon(Icons.check),
+                        tooltip: '확인',
+                      )
+                    else
+                      IconButton(
+                        onPressed: _handleDeleteConfirm,
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: '삭제',
+                      ),
+                    IconButton(
+                      onPressed: _exitSelectionMode,
+                      icon: const Icon(Icons.close),
+                      tooltip: '취소',
+                    ),
+                  ],
+                ],
               ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                children: [
+                  for (final routine in widget.library.routines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _RoutineCard(
+                        routine: routine,
+                        onStart: () => widget.onStartRoutine(routine),
+                        isSelected: _selectedIds.contains(routine.id),
+                        onTap: _selectionMode != SelectionMode.none
+                            ? () => _toggleSelection(routine.id)
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         );
       },
@@ -503,21 +659,40 @@ class _SettingsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-      children: const [
+      children: [
         ListTile(
-          leading: Icon(Icons.notifications_outlined),
-          title: Text('알림'),
-          subtitle: Text('연습 리마인더 설정'),
+          leading: const Icon(Icons.notifications_outlined),
+          title: Text('settings.notifications'.tr()),
+          subtitle: Text('settings.notifications_subtitle'.tr()),
         ),
         ListTile(
-          leading: Icon(Icons.palette_outlined),
-          title: Text('테마'),
-          subtitle: Text('시스템 라이트/다크 설정을 따릅니다'),
+          leading: const Icon(Icons.palette_outlined),
+          title: Text('settings.theme'.tr()),
+          subtitle: Text('settings.theme_subtitle'.tr()),
+        ),
+        Builder(
+          builder: (context) => ListTile(
+            leading: const Icon(Icons.language),
+            title: Text('settings.language'.tr()),
+            subtitle: Text('settings.language_subtitle'.tr()),
+            trailing: DropdownButton<Locale>(
+              value: context.locale,
+              items: const [
+                DropdownMenuItem(value: Locale('en'), child: Text('English')),
+                DropdownMenuItem(value: Locale('ko'), child: Text('한국어')),
+              ],
+              onChanged: (locale) {
+                if (locale != null) {
+                  context.setLocale(locale);
+                }
+              },
+            ),
+          ),
         ),
         ListTile(
-          leading: Icon(Icons.info_outline),
-          title: Text('앱 정보'),
-          subtitle: Text('LOOPI'),
+          leading: const Icon(Icons.info_outline),
+          title: Text('settings.app_info'.tr()),
+          subtitle: Text('settings.app_info_subtitle'.tr()),
         ),
       ],
     );

@@ -1,0 +1,86 @@
+{
+  "app_name": "LOOPI",
+  "social_login": {
+    "title": "유튜브 구간 반복 학습 루틴",
+    "login_kakao": "카카오로 시작하기",
+    "login_google": "구글로 시작하기",
+    "login_apple": "애플로 시작하기",
+    "login_guest": "게스트로 둘러보기",
+    "terms_agreement": "계속 진행하면 LOOPI 이용약관 및 개인정보 처리방침에 동의하게 됩니다."
+  },
+  "home": {
+    "greeting": "좋은 하루예요,",
+    "subtitle": "오늘도 리듬을 이어가볼까요?",
+    "weekly_stats": "주간 학습 스트릭",
+    "continuous_learning": "연속 학습",
+    "this_week": "이번 주",
+    "saved_routines": "저장 루틴",
+    "quick_action": "새 루틴 만들기",
+    "quick_action_subtitle": "유튜브 링크 등록",
+    "recent_routines": "최근 연습한 루틴",
+    "view_all": "전체 보기",
+    "no_routines": "아직 저장한 루틴이 없어요.\n첫 루틴을 만들어볼까요?",
+    "start_practice": "바로 시작",
+    "tab_home": "홈",
+  "tab_studio": "스튜디오",
+  "tab_settings": "설정"
+  },
+  "library": {
+    "title": "내 루틴 보관함",
+    "group_routines": "루틴 묶어서 저장",
+    "delete": "삭제",
+    "confirm": "확인",
+    "cancel": "취소",
+    "create_group": "루틴 그룹 생성",
+    "group_name_hint": "그룹 이름 입력",
+    "delete_confirm_title": "루틴 삭제",
+    "delete_confirm_message": "선택한 N개의 루틴을 삭제하시겠습니까?",
+    "no_routines_message": "아직 저장한 루틴이 없어요.\n첫 루틴을 만들어볼까요?"
+  },
+  "studio": {
+    "url_placeholder": "Paste a YouTube URL",
+    "load": "Load",
+    "timeline": "A-B Loop Timeline",
+    "start": "Start",
+    "end": "End",
+    "routine_list": "Routine list",
+    "add_section": "Add section",
+    "section": "Section",
+    "speed": "Speed",
+    "loop": "Loop",
+    "delay": "Delay",
+    "save": "저장",
+    "save_dialog_title": "루틴 저장",
+    "save_success": "루틴이 저장되었습니다.",
+    "player_placeholder": "YouTube Player Placeholder"
+  },
+  "player": {
+    "get_ready": "Get Ready",
+    "previous_segment": "이전 구간",
+    "rewind_5s": "5초 뒤로",
+    "play": "재생",
+    "pause": "일시정지",
+    "forward_5s": "5초 앞으로",
+    "next_segment": "다음 구간"
+  },
+  "settings": {
+    "title": "설정",
+    "notifications": "알림",
+    "notifications_subtitle": "연습 리마인더 설정",
+    "theme": "테마",
+    "theme_subtitle": "시스템 라이트/다크 설정을 따릅니다",
+    "language": "언어",
+    "language_subtitle": "앱 언어 설정",
+    "app_info": "앱 정보",
+    "app_info_subtitle": "LOOPI",
+    "korean": "한국어",
+    "english": "English"
+  },
+  "common": {
+    "days": "일",
+    "minutes": "분",
+    "seconds": "초",
+    "infinite": "무한",
+    "section_label": "구간"
+  }
+}

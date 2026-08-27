@@ -1,0 +1,86 @@
+{
+  "app_name": "LOOPI",
+  "social_login": {
+    "title": "YouTube Loop Practice Routine",
+    "login_kakao": "Continue with Kakao",
+    "login_google": "Continue with Google",
+    "login_apple": "Continue with Apple",
+    "login_guest": "Continue as Guest",
+    "terms_agreement": "By continuing, you agree to LOOPI Terms of Service and Privacy Policy."
+  },
+  "home": {
+    "greeting": "Good day,",
+    "subtitle": "Shall we continue the rhythm today?",
+    "weekly_stats": "Weekly Learning Streak",
+    "continuous_learning": "Continuous Learning",
+    "this_week": "This Week",
+    "saved_routines": "Saved Routines",
+    "quick_action": "Create New Routine",
+    "quick_action_subtitle": "Register YouTube Link",
+    "recent_routines": "Recently Practiced Routines",
+    "view_all": "View All",
+    "no_routines": "No saved routines yet.\nShall we create your first routine?",
+    "start_practice": "Start Now",
+    "tab_home": "Home",
+  "tab_studio": "Studio",
+  "tab_settings": "Settings"
+  },
+  "library": {
+    "title": "My Routine Library",
+    "group_routines": "Group Routines",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "create_group": "Create Routine Group",
+    "group_name_hint": "Enter group name",
+    "delete_confirm_title": "Delete Routines",
+    "delete_confirm_message": "Are you sure you want to delete N selected routines?",
+    "no_routines_message": "No saved routines yet.\nShall we create your first routine?"
+  },
+  "studio": {
+    "url_placeholder": "Paste a YouTube URL",
+    "load": "Load",
+    "timeline": "A-B Loop Timeline",
+    "start": "Start",
+    "end": "End",
+    "routine_list": "Routine list",
+    "add_section": "Add section",
+    "section": "Section",
+    "speed": "Speed",
+    "loop": "Loop",
+    "delay": "Delay",
+    "save": "Save",
+    "save_dialog_title": "Save Routine",
+    "save_success": "Routine has been saved.",
+    "player_placeholder": "YouTube Player Placeholder"
+  },
+  "player": {
+    "get_ready": "Get Ready",
+    "previous_segment": "Previous Segment",
+    "rewind_5s": "Rewind 5s",
+    "play": "Play",
+    "pause": "Pause",
+    "forward_5s": "Forward 5s",
+    "next_segment": "Next Segment"
+  },
+  "settings": {
+    "title": "Settings",
+    "notifications": "Notifications",
+    "notifications_subtitle": "Practice reminder settings",
+    "theme": "Theme",
+    "theme_subtitle": "Follow system light/dark settings",
+    "language": "Language",
+    "language_subtitle": "App language settings",
+    "app_info": "App Info",
+    "app_info_subtitle": "LOOPI",
+    "korean": "한국어",
+    "english": "English"
+  },
+  "common": {
+    "days": "days",
+    "minutes": "min",
+    "seconds": "s",
+    "infinite": "Infinite",
+    "section_label": "Section"
+  }
+}
