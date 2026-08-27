@@ -576,12 +576,17 @@ class _LibraryTabState extends State<_LibraryTab> {
     return AnimatedBuilder(
       animation: widget.library,
       builder: (context, _) {
-        if (widget.library.routines.isEmpty) {
+        final groups = widget.library.groups;
+        final ungrouped = widget.library.ungroupedRoutines;
+        final totalRoutines = widget.library.routines;
+
+        if (totalRoutines.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(24),
             child: _EmptyRoutineCard(onTap: widget.onCreateRoutine),
           );
         }
+
         return Column(
           children: [
             Padding(
@@ -630,24 +635,195 @@ class _LibraryTabState extends State<_LibraryTab> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                 children: [
-                  for (final routine in widget.library.routines)
+                  for (final group in groups)
+                    _RoutineGroupCard(
+                      group: group,
+                      routines: widget.library.routinesForGroup(group),
+                      isSelectionMode: _selectionMode != SelectionMode.none,
+                      selectedIds: _selectedIds,
+                      onToggleSelection: _toggleSelection,
+                      onDeleteGroup: () async {
+                        final shouldKeep = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('폴더 삭제'),
+                            content: const Text('이 폴더를 삭제할까요? 내부 루틴 원본을 유지하시겠습니까?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('원본 유지'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('루틴도 삭제'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (shouldKeep == null) return;
+                        await widget.library.deleteGroup(group.id, keepRoutines: shouldKeep);
+                      },
+                      onPlayGroup: () {
+                        final playlist = widget.library.routinesForGroup(group);
+                        if (playlist.isEmpty) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PracticeModeScreen(
+                              routine: playlist.first,
+                              routines: playlist,
+                              repeatPlaylist: true,
+                            ),
+                          ),
+                        );
+                      },
+                      onOpenRoutine: widget.onStartRoutine,
+                    ),
+                  if (ungrouped.isNotEmpty) ...[
+                    const SizedBox(height: 6),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _RoutineCard(
-                        routine: routine,
-                        onStart: () => widget.onStartRoutine(routine),
-                        isSelected: _selectedIds.contains(routine.id),
-                        onTap: _selectionMode != SelectionMode.none
-                            ? () => _toggleSelection(routine.id)
-                            : null,
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '단독 루틴',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
+                    for (final routine in ungrouped)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RoutineCard(
+                          routine: routine,
+                          onStart: () => widget.onStartRoutine(routine),
+                          isSelected: _selectedIds.contains(routine.id),
+                          onTap: _selectionMode != SelectionMode.none
+                              ? () => _toggleSelection(routine.id)
+                              : null,
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _RoutineGroupCard extends StatefulWidget {
+  const _RoutineGroupCard({
+    required this.group,
+    required this.routines,
+    required this.isSelectionMode,
+    required this.selectedIds,
+    required this.onToggleSelection,
+    required this.onDeleteGroup,
+    required this.onPlayGroup,
+    required this.onOpenRoutine,
+  });
+
+  final RoutineGroup group;
+  final List<SavedRoutine> routines;
+  final bool isSelectionMode;
+  final Set<String> selectedIds;
+  final void Function(String id) onToggleSelection;
+  final Future<void> Function() onDeleteGroup;
+  final VoidCallback onPlayGroup;
+  final ValueChanged<SavedRoutine> onOpenRoutine;
+
+  @override
+  State<_RoutineGroupCard> createState() => _RoutineGroupCardState();
+}
+
+class _RoutineGroupCardState extends State<_RoutineGroupCard> {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          initiallyExpanded: false,
+          leading: Icon(Icons.folder_rounded, color: LoopiColors.purple),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.group.title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: LoopiColors.purple.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${widget.routines.length}개',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: widget.onPlayGroup,
+                icon: const Icon(Icons.play_arrow_rounded),
+                tooltip: '폴더 전체 재생',
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    widget.onDeleteGroup();
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'delete', child: Text('폴더 삭제')),
+                ],
+              ),
+            ],
+          ),
+          children: [
+            if (widget.routines.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('폴더에 포함된 루틴이 없습니다.'),
+              )
+            else
+              ...widget.routines.map(
+                (routine) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: scheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: _RoutineCard(
+                      routine: routine,
+                      onStart: () => widget.onOpenRoutine(routine),
+                      isSelected: widget.selectedIds.contains(routine.id),
+                      onTap: widget.isSelectionMode ? () => widget.onToggleSelection(routine.id) : null,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'screens/social_login_screen.dart';
@@ -31,12 +32,21 @@ class _LoopiAppState extends State<LoopiApp> {
 
   @override
   Widget build(BuildContext context) {
+    final localization = EasyLocalization.of(context);
+    final delegates = localization?.delegates ?? [
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ];
+    final supportedLocales = localization?.supportedLocales ?? const [Locale('en'), Locale('ko')];
+    final locale = localization?.locale ?? const Locale('en');
+
     return MaterialApp(
       title: 'LOOPI',
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
+      localizationsDelegates: delegates,
+      supportedLocales: supportedLocales,
+      locale: locale,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: LoopiColors.purple),
         useMaterial3: true,

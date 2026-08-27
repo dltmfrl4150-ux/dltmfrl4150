@@ -37,6 +37,11 @@
     "delete_confirm_message": "Are you sure you want to delete N selected routines?",
     "no_routines_message": "No saved routines yet.\nShall we create your first routine?"
   },
+  "link_studio": {
+    "search_on_youtube": "Search on YouTube",
+    "paste_from_clipboard": "Paste from clipboard",
+    "detected_copied_link": "A copied YouTube link was detected."
+  },
   "studio": {
     "url_placeholder": "Paste a YouTube URL",
     "load": "Load",

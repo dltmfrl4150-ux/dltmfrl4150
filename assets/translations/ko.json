@@ -37,6 +37,11 @@
     "delete_confirm_message": "선택한 N개의 루틴을 삭제하시겠습니까?",
     "no_routines_message": "아직 저장한 루틴이 없어요.\n첫 루틴을 만들어볼까요?"
   },
+  "link_studio": {
+    "search_on_youtube": "YouTube에서 검색",
+    "paste_from_clipboard": "클립보드 붙여넣기",
+    "detected_copied_link": "복사한 유튜브 링크를 감지했습니다."
+  },
   "studio": {
     "url_placeholder": "Paste a YouTube URL",
     "load": "Load",

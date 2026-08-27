@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/routine_models.dart';
 import '../state/link_studio_session.dart';
@@ -30,7 +32,7 @@ class LinkStudioScreen extends StatefulWidget {
   State<LinkStudioScreen> createState() => _LinkStudioScreenState();
 }
 
-class _LinkStudioScreenState extends State<LinkStudioScreen> {
+class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBindingObserver {
   final LinkStudioSession _session = LinkStudioSession();
   final TextEditingController _urlController = TextEditingController();
   final List<TextEditingController> _startControllers = [];
@@ -52,6 +54,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
   bool _delayPending = false;
   int _highlightedSection = 0;
   Completer<void>? _delayCompleter;
+  String? _lastDetectedClipboardText;
 
   bool get _inWidgetTest =>
       WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
@@ -59,6 +62,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _videoUrl = widget.initialVideoUrl;
     _urlController.text = _videoUrl;
     _videoId = extractYoutubeVideoId(_videoUrl) ?? 'M7lc1UVf-VE';
@@ -205,7 +209,8 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
   }
 
   Future<void> _loadUrl() async {
-    final id = extractYoutubeVideoId(_urlController.text);
+    final trimmed = _urlController.text.trim();
+    final id = extractYoutubeVideoId(trimmed);
     if (id == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -215,9 +220,108 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
     }
     setState(() {
       _videoId = id;
-      _videoUrl = _urlController.text.trim();
+      _videoUrl = trimmed;
     });
     await _player.cueVideoById(videoId: id);
+  }
+
+  String? _normalizeYoutubeUrl(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    final explicitId = extractYoutubeVideoId(trimmed);
+    if (explicitId != null) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && (uri.host.contains('youtube.com') || uri.host.contains('youtu.be'))) {
+        return trimmed;
+      }
+      return 'https://www.youtube.com/watch?v=$explicitId';
+    }
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+    final host = uri.host.toLowerCase();
+    if (!host.contains('youtube.com') && !host.contains('youtu.be')) {
+      return null;
+    }
+    return uri.toString();
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    final pasted = clipboardData?.text?.trim();
+    if (pasted == null || pasted.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('studio.url_placeholder'.tr())),
+      );
+      return;
+    }
+
+    final normalized = _normalizeYoutubeUrl(pasted);
+    if (normalized == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('studio.url_placeholder'.tr())),
+      );
+      return;
+    }
+
+    _urlController.text = normalized;
+    setState(() {
+      _videoUrl = normalized;
+      _videoId = extractYoutubeVideoId(normalized) ?? _videoId;
+    });
+    await _loadUrl();
+  }
+
+  Future<void> _openYoutubeSearchOrHome() async {
+    final query = _urlController.text.trim();
+    final uri = query.isEmpty
+        ? Uri.parse('https://www.youtube.com')
+        : (extractYoutubeVideoId(query) != null
+            ? Uri.parse(query)
+            : Uri.parse('https://www.youtube.com/results?search_query=${Uri.encodeQueryComponent(query)}'));
+
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('studio.url_placeholder'.tr())),
+      );
+    }
+  }
+
+  Future<void> _checkClipboardForDetectedLink() async {
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = clipboardData?.text?.trim();
+    if (text == null || text.isEmpty) return;
+
+    final normalized = _normalizeYoutubeUrl(text);
+    if (normalized == null || normalized == _lastDetectedClipboardText) return;
+
+    _lastDetectedClipboardText = normalized;
+    if (!mounted) return;
+
+    _urlController.text = normalized;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${'link_studio.detected_copied_link'.tr()} ${'studio.load'.tr()}'),
+        action: SnackBarAction(
+          label: 'studio.load'.tr(),
+          onPressed: () {
+            _loadUrl();
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_checkClipboardForDetectedLink());
+    }
   }
 
   Future<void> _selectRow(int index) async {
@@ -377,6 +481,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _delayTimer?.cancel();
     _valueSub?.cancel();
@@ -479,10 +584,15 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
               child: TextField(
                 controller: _urlController,
                 enabled: !_session.isTesting,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   border: InputBorder.none,
                   hintText: 'Paste a YouTube URL',
                   isDense: true,
+                  suffixIcon: IconButton(
+                    tooltip: 'link_studio.paste_from_clipboard'.tr(),
+                    onPressed: _session.isTesting ? null : _pasteFromClipboard,
+                    icon: const Icon(Icons.content_paste_rounded, color: LoopiColors.deepPurple),
+                  ),
                 ),
                 onSubmitted: (_) => _loadUrl(),
               ),
@@ -491,6 +601,16 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> {
               onPressed: _session.isTesting ? null : _loadUrl,
               style: TextButton.styleFrom(foregroundColor: Colors.white, backgroundColor: LoopiColors.deepPurple),
               child: Text('studio.load'.tr()),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'link_studio.search_on_youtube'.tr(),
+              onPressed: _openYoutubeSearchOrHome,
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFFFF0000).withValues(alpha: 0.12),
+                foregroundColor: const Color(0xFFFF0000),
+              ),
+              icon: const Icon(Icons.play_circle_fill_rounded),
             ),
           ],
         ),
