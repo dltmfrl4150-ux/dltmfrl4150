@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:video_player/video_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import '../models/routine_models.dart';
 import '../state/link_studio_session.dart';
@@ -12,21 +17,48 @@ import '../state/routine_library.dart';
 import '../theme/loopi_colors.dart';
 import '../utils/time_format.dart';
 import '../utils/youtube_id.dart';
+import '../utils/media_blob.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/save_routine_dialog.dart';
 import 'practice_mode_screen.dart';
 
 const String kDefaultVideoUrl = 'https://www.youtube.com/watch?v=M7lc1UVf-VE';
 
+String? _platformFilePath(PlatformFile? file) {
+  if (file == null || kIsWeb) return null;
+  return file.path;
+}
+
+String? _createSelectedVideoBlobUrl(PlatformFile file) {
+  final extension = file.extension?.toLowerCase();
+  final mimeType = switch (extension) {
+    'webm' => 'video/webm',
+    'mov' => 'video/quicktime',
+    'mkv' => 'video/x-matroska',
+    _ => 'video/mp4',
+  };
+  return createMediaBlobUrl(file.bytes!, mimeType);
+}
+
 class LinkStudioScreen extends StatefulWidget {
   const LinkStudioScreen({
     super.key,
     required this.library,
     this.initialVideoUrl = kDefaultVideoUrl,
+    this.sourceType = SourceType.youtube,
+    this.embedded = false,
+    this.file,
+    this.localFilePath,
+    this.fileName,
   });
 
   final RoutineLibrary library;
   final String initialVideoUrl;
+  final SourceType sourceType;
+  final bool embedded;
+  final PlatformFile? file;
+  final String? localFilePath;
+  final String? fileName;
 
   @override
   State<LinkStudioScreen> createState() => _LinkStudioScreenState();
@@ -40,7 +72,10 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
   final List<FocusNode> _startFocus = [];
   final List<FocusNode> _endFocus = [];
 
-  late YoutubePlayerController _player;
+  late YoutubePlayerController _youtubePlayer;
+  bool _youtubeInitialized = false;
+  VideoPlayerController? _videoPlayer;
+  AudioPlayer? _audioPlayer;
   StreamSubscription<YoutubePlayerValue>? _valueSub;
   StreamSubscription<YoutubeVideoState>? _stateSub;
   Timer? _pollTimer;
@@ -55,6 +90,10 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
   int _highlightedSection = 0;
   Completer<void>? _delayCompleter;
   String? _lastDetectedClipboardText;
+  String? _mediaObjectUrl;
+  bool _audioLoading = false;
+  double? _activePlaybackStart;
+  double? _activePlaybackEnd;
 
   bool get _inWidgetTest =>
       WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
@@ -69,7 +108,30 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     _syncRowControllers();
     _session.addListener(_onSessionChanged);
 
-    _player = YoutubePlayerController.fromVideoId(
+    _session.setSourceType(
+      widget.sourceType,
+      localFilePath: _platformFilePath(widget.file) ?? widget.localFilePath,
+      fileName: widget.file?.name ?? widget.fileName,
+      localDataBytes: widget.file?.bytes,
+    );
+
+    switch (widget.sourceType) {
+      case SourceType.youtube:
+        if (!_inWidgetTest) {
+          _initializeYouTubePlayer();
+        }
+        break;
+      case SourceType.localVideo:
+        _initializeVideoPlayer();
+        break;
+      case SourceType.audio:
+        _initializeAudioPlayer();
+        break;
+    }
+  }
+
+  Future<void> _initializeYouTubePlayer() async {
+    _youtubePlayer = YoutubePlayerController.fromVideoId(
       videoId: _videoId,
       autoPlay: false,
       params: const YoutubePlayerParams(
@@ -81,8 +143,82 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
         enableKeyboard: true,
       ),
     );
-    _valueSub = _player.stream.listen(_onPlayerValue);
-    _stateSub = _player.videoStateStream.listen(_onVideoState);
+    _youtubeInitialized = true;
+    _valueSub = _youtubePlayer.stream.listen(_onPlayerValue);
+    _stateSub = _youtubePlayer.videoStateStream.listen(_onVideoState);
+  }
+
+  Future<void> _initializeVideoPlayer() async {
+    final path = _platformFilePath(widget.file) ?? widget.localFilePath;
+    if (path != null) {
+      _videoPlayer = VideoPlayerController.file(File(path));
+    } else if (widget.file?.bytes != null) {
+      final extension = widget.file!.extension?.toLowerCase();
+      final mimeType = switch (extension) {
+        'webm' => 'video/webm',
+        'mov' => 'video/quicktime',
+        'mkv' => 'video/x-matroska',
+        _ => 'video/mp4',
+      };
+        _mediaObjectUrl = createMediaBlobUrl(widget.file!.bytes!, mimeType);
+        final uri = _mediaObjectUrl == null
+          ? Uri.dataFromBytes(widget.file!.bytes!, mimeType: mimeType)
+          : Uri.parse(_mediaObjectUrl!);
+      _videoPlayer = VideoPlayerController.networkUrl(uri);
+    } else {
+      return;
+    }
+    await _videoPlayer!.initialize();
+    _session.setVideoDuration(_videoPlayer!.value.duration.inMilliseconds / 1000.0);
+    _videoPlayer!.addListener(_onVideoPlayerUpdate);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _initializeAudioPlayer() async {
+    _audioLoading = true;
+    if (mounted) setState(() {});
+    final path = _platformFilePath(widget.file) ?? widget.localFilePath;
+    _audioPlayer = AudioPlayer();
+    try {
+      if (path != null) {
+        await _audioPlayer!.setSourceDeviceFile(path);
+      } else if (widget.file?.bytes != null) {
+        await _audioPlayer!.setSourceBytes(widget.file!.bytes!);
+      } else {
+        return;
+      }
+      final duration = await _audioPlayer!.getDuration();
+      if (duration != null) {
+        _session.setVideoDuration(duration.inMilliseconds / 1000.0);
+      }
+      _audioPlayer!.onPositionChanged.listen((position) {
+        final seconds = position.inMilliseconds / 1000.0;
+        _syncSectionHighlight(seconds);
+        if (_session.isTesting) {
+          _handleTestTime(seconds);
+        }
+      });
+    } finally {
+      _audioLoading = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _onVideoPlayerUpdate() {
+    if (_videoPlayer == null) return;
+    final duration = _videoPlayer!.value.duration.inMilliseconds / 1000.0;
+    final position = _videoPlayer!.value.position.inMilliseconds / 1000.0;
+    
+    if (duration > 1) {
+      _session.setVideoDuration(duration);
+    }
+    
+    _syncSectionHighlight(position);
+    if (_session.isTesting) {
+      _handleTestTime(position);
+    }
+    
+    if (mounted) setState(() {});
   }
 
   void _onSessionChanged() {
@@ -186,16 +322,85 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
       return;
     }
     _lastSeekAt = now;
+    
     try {
-      await _player.seekTo(seconds: seconds, allowSeekAhead: true);
+      switch (_session.sourceType) {
+        case SourceType.youtube:
+          await _youtubePlayer.seekTo(seconds: seconds, allowSeekAhead: true);
+          break;
+        case SourceType.localVideo:
+          await _videoPlayer?.seekTo(Duration(milliseconds: (seconds * 1000).toInt()));
+          break;
+        case SourceType.audio:
+          await _audioPlayer?.seek(Duration(milliseconds: (seconds * 1000).toInt()));
+          break;
+      }
     } catch (_) {}
   }
 
   Future<void> _applySpeed(double speed) async {
     if (_inWidgetTest) return;
     try {
-      await _player.setPlaybackRate(speed);
+      switch (_session.sourceType) {
+        case SourceType.youtube:
+          await _youtubePlayer.setPlaybackRate(speed);
+          break;
+        case SourceType.localVideo:
+          await _videoPlayer?.setPlaybackSpeed(speed);
+          break;
+        case SourceType.audio:
+          await _audioPlayer?.setPlaybackRate(speed);
+          break;
+      }
     } catch (_) {}
+  }
+
+  Future<void> _play() async {
+    if (_inWidgetTest) return;
+    try {
+      switch (_session.sourceType) {
+        case SourceType.youtube:
+          await _youtubePlayer.playVideo();
+          break;
+        case SourceType.localVideo:
+          await _videoPlayer?.play();
+          break;
+        case SourceType.audio:
+          await _audioPlayer?.resume();
+          break;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pause() async {
+    if (_inWidgetTest) return;
+    try {
+      switch (_session.sourceType) {
+        case SourceType.youtube:
+          await _youtubePlayer.pauseVideo();
+          break;
+        case SourceType.localVideo:
+          await _videoPlayer?.pause();
+          break;
+        case SourceType.audio:
+          await _audioPlayer?.pause();
+          break;
+      }
+    } catch (_) {}
+  }
+
+  Future<double> _getCurrentTime() async {
+    switch (_session.sourceType) {
+      case SourceType.youtube:
+        return await _youtubePlayer.currentTime;
+      case SourceType.localVideo:
+        final position = _videoPlayer?.value.position.inMilliseconds;
+        return position != null ? position / 1000.0 : 0;
+      case SourceType.audio:
+        final position = await _audioPlayer?.getCurrentPosition();
+        final positionMs = position?.inMilliseconds;
+        return positionMs != null ? positionMs / 1000.0 : 0;
+    }
   }
 
   void _commitTimeField({required int index, required bool isStart}) {
@@ -222,7 +427,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
       _videoId = id;
       _videoUrl = trimmed;
     });
-    await _player.cueVideoById(videoId: id);
+    await _youtubePlayer.cueVideoById(videoId: id);
   }
 
   String? _normalizeYoutubeUrl(String input) {
@@ -355,21 +560,23 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
       await _stopTestPlayback();
       return;
     }
-    _session.beginTest();
-    _highlightedSection = 0;
+    _session.beginTest(startIndex: _session.selectedIndex);
+    _highlightedSection = _session.testSegmentIndex;
     _delayPending = false;
     _ignoreLoopUntil = DateTime.now().add(const Duration(milliseconds: 400));
     final first = _session.testSegment;
+    _activePlaybackStart = first.startSec;
+    _activePlaybackEnd = first.endSec;
     await _applySpeed(first.speed);
     await _seekTo(first.startSec, force: true);
     if (!_inWidgetTest) {
-      await _player.playVideo();
+      await _play();
     }
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 120), (_) async {
       if (!_session.isTesting) return;
       try {
-        final time = await _player.currentTime;
+        final time = await _getCurrentTime();
         _syncSectionHighlight(time);
         _handleTestTime(time);
       } catch (_) {}
@@ -381,7 +588,11 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     final now = DateTime.now();
     if (_ignoreLoopUntil != null && now.isBefore(_ignoreLoopUntil!)) return;
     final segment = _session.testSegment;
-    if (time + 0.12 < segment.endSec) return;
+    final start = _activePlaybackStart ?? segment.startSec;
+    if (time + 0.04 < start) return;
+    final end = _activePlaybackEnd ?? segment.endSec;
+    final reachedEnd = time >= end - 0.04;
+    if (!reachedEnd) return;
 
     _ignoreLoopUntil = DateTime.now().add(const Duration(days: 1));
     final delaySec = segment.delaySec;
@@ -398,12 +609,14 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     if (!_session.isTesting || !mounted) return;
     _ignoreLoopUntil = DateTime.now().add(const Duration(milliseconds: 280));
     _highlightedSection = _session.testSegmentIndex;
+    _activePlaybackStart = _session.testSegment.startSec;
+    _activePlaybackEnd = _session.testSegment.endSec;
     if (result == LoopHitResult.nextSegment) {
       await _applySpeed(_session.testSegment.speed);
     }
     await _seekTo(_session.testSegment.startSec, force: true);
     if (!_inWidgetTest) {
-      await _player.playVideo();
+      await _play();
     }
     if (mounted) setState(() {});
   }
@@ -412,7 +625,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     if (delaySec <= 0 || _inWidgetTest) return;
     _delayPending = true;
     try {
-      await _player.pauseVideo();
+      await _pause();
     } catch (_) {}
     _delayCompleter = Completer<void>();
     _delayTimer?.cancel();
@@ -432,10 +645,12 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     _pollTimer?.cancel();
     _pollTimer = null;
     _session.stopTest();
+    _activePlaybackStart = null;
+    _activePlaybackEnd = null;
     _highlightedSection = _session.selectedIndex;
     if (!_inWidgetTest) {
       try {
-        await _player.pauseVideo();
+        await _pause();
         await _applySpeed(_session.active.speed);
         await _seekTo(_session.active.startSec, force: true);
       } catch (_) {}
@@ -453,7 +668,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     setState(() => _saveDialogOpen = true);
     if (!_inWidgetTest) {
       try {
-        await _player.pauseVideo();
+        await _pause();
       } catch (_) {}
     }
     if (!mounted) return;
@@ -474,7 +689,7 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
     );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PracticeModeScreen(routine: routine),
+        builder: (_) => PracticeModeScreen(routine: routine, library: widget.library),
       ),
     );
   }
@@ -503,72 +718,170 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
       n.removeListener(_onTimeFocusChanged);
       n.dispose();
     }
-    _player.close();
+    if (_youtubeInitialized) {
+      _youtubePlayer.close();
+    }
+    _videoPlayer?.dispose();
+    _audioPlayer?.dispose();
+    revokeMediaBlobUrl(_mediaObjectUrl);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final testing = _session.isTesting;
+    
+    switch (_session.sourceType) {
+      case SourceType.youtube:
+        return _buildYouTubeScaffold(testing);
+      case SourceType.localVideo:
+        return _buildVideoScaffold(testing);
+      case SourceType.audio:
+        return _buildAudioScaffold(testing);
+    }
+  }
+
+  Widget _buildYouTubeScaffold(bool testing) {
+    if (!_youtubeInitialized) {
+      return _buildMainScaffold(
+        testing: testing,
+        mediaWidget: Center(
+          child: Text(
+            'studio.player_placeholder'.tr(),
+            style: const TextStyle(color: Colors.white70),
+          ),
+        ),
+        showUrlBar: true,
+      );
+    }
     return YoutubePlayerScaffold(
-      controller: _player,
+      controller: _youtubePlayer,
       aspectRatio: 16 / 9,
       builder: (context, player) {
-        return Scaffold(
-          backgroundColor: LoopiColors.canvas,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            foregroundColor: LoopiColors.ink,
-            elevation: 0,
-            title: const AppLogo(height: 30),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  children: [
-                    _urlBar(),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: ColoredBox(
-                          color: Colors.black,
-                          child: _inWidgetTest || _saveDialogOpen
-                              ? Center(
-                                  child: Text(
-                                    'studio.player_placeholder'.tr(),
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                )
-                              : player,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionChips(),
-                    const SizedBox(height: 8),
-                    _timeline(),
-                    const SizedBox(height: 16),
-                    _routineTable(testing),
-                  ],
-                ),
-              ),
-              _bottomBar(testing),
-            ],
-          ),
+        return _buildMainScaffold(
+          testing: testing,
+          mediaWidget: _inWidgetTest || _saveDialogOpen
+              ? Center(
+                  child: Text(
+                    'studio.player_placeholder'.tr(),
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                )
+              : player,
+          showUrlBar: true,
         );
       },
+    );
+  }
+
+  Widget _buildVideoScaffold(bool testing) {
+    return _buildMainScaffold(
+      testing: testing,
+      mediaWidget: _videoPlayer != null && _videoPlayer!.value.isInitialized
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AspectRatio(
+                aspectRatio: _videoPlayer!.value.aspectRatio,
+                child: VideoPlayer(_videoPlayer!),
+              ),
+            )
+          : const Center(
+              child: CircularProgressIndicator(),
+            ),
+      showUrlBar: false,
+    );
+  }
+
+  Widget _buildAudioScaffold(bool testing) {
+    return _buildMainScaffold(
+      testing: testing,
+      mediaWidget: _buildAudioPlayerWidget(),
+      showUrlBar: false,
+    );
+  }
+
+  Widget _buildAudioPlayerWidget() {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.graphic_eq_rounded, color: LoopiColors.purple, size: 64),
+          const SizedBox(height: 16),
+          if (_audioLoading) const CircularProgressIndicator(color: LoopiColors.purple),
+          if (_audioLoading) const SizedBox(height: 12),
+          Text(
+            'studio.audio_mode'.tr(),
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          if (_session.fileName != null)
+            Text(
+              _session.fileName!,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainScaffold({
+    required bool testing,
+    required Widget mediaWidget,
+    required bool showUrlBar,
+  }) {
+    return Scaffold(
+      backgroundColor: LoopiColors.canvas,
+        appBar: widget.embedded || !Navigator.of(context).canPop()
+          ? null
+          : AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: LoopiColors.ink,
+        elevation: 0,
+        title: const AppLogo(height: 30),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              children: [
+                if (showUrlBar) _urlBar() else _fileInfoBar(),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ColoredBox(
+                      color: Colors.black,
+                      child: mediaWidget,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _sectionChips(),
+                const SizedBox(height: 8),
+                _timeline(),
+                const SizedBox(height: 16),
+                _routineTable(testing),
+              ],
+            ),
+          ),
+          _bottomBar(testing),
+        ],
+      ),
     );
   }
 
@@ -579,15 +892,18 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: TextField(
                 controller: _urlController,
                 enabled: !_session.isTesting,
+                textAlignVertical: TextAlignVertical.center,
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   hintText: 'Paste a YouTube URL',
                   isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   suffixIcon: IconButton(
                     tooltip: 'link_studio.paste_from_clipboard'.tr(),
                     onPressed: _session.isTesting ? null : _pasteFromClipboard,
@@ -616,6 +932,120 @@ class _LinkStudioScreenState extends State<LinkStudioScreen> with WidgetsBinding
         ),
       ),
     );
+  }
+
+  Widget _fileInfoBar() {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(
+              _session.sourceType == SourceType.audio 
+                  ? Icons.graphic_eq_rounded 
+                  : Icons.videocam_rounded,
+              color: LoopiColors.deepPurple,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _session.fileName ?? 'studio.file_selected'.tr(),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    _session.sourceType == SourceType.audio 
+                        ? 'studio.audio_mode'.tr() 
+                        : 'studio.video_mode'.tr(),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _session.isTesting ? null : _changeFile,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: Text('studio.change_file'.tr()),
+              style: TextButton.styleFrom(
+                foregroundColor: LoopiColors.deepPurple,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: _session.sourceType == SourceType.audio
+          ? FileType.custom
+          : FileType.video,
+      allowedExtensions: _session.sourceType == SourceType.audio
+          ? ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'mp4', 'mov', 'webm']
+          : null,
+      allowMultiple: false,
+      withData: true,
+    );
+    
+    if (result != null && result.files.isNotEmpty) {
+      final selectedFile = result.files.single;
+      final filePath = _platformFilePath(selectedFile);
+      final fileBytes = selectedFile.bytes;
+      if (filePath == null && fileBytes == null) return;
+      final fileName = result.files.single.name;
+      
+      // Reinitialize the appropriate player
+      if (_session.sourceType == SourceType.localVideo) {
+        await _videoPlayer?.dispose();
+        revokeMediaBlobUrl(_mediaObjectUrl);
+        _mediaObjectUrl = _createSelectedVideoBlobUrl(selectedFile);
+        _videoPlayer = filePath != null
+            ? VideoPlayerController.file(File(filePath))
+          : VideoPlayerController.networkUrl(
+            _mediaObjectUrl == null
+              ? Uri.dataFromBytes(fileBytes!, mimeType: 'video/mp4')
+              : Uri.parse(_mediaObjectUrl!),
+            );
+        await _videoPlayer!.initialize();
+        _session.setVideoDuration(_videoPlayer!.value.duration.inMilliseconds / 1000.0);
+        _videoPlayer!.addListener(_onVideoPlayerUpdate);
+      } else if (_session.sourceType == SourceType.audio) {
+        await _audioPlayer?.dispose();
+        _audioPlayer = AudioPlayer();
+        if (filePath != null) {
+          await _audioPlayer!.setSourceDeviceFile(filePath);
+        } else {
+          await _audioPlayer!.setSourceBytes(fileBytes!);
+        }
+        final duration = await _audioPlayer!.getDuration();
+        if (duration != null) {
+          _session.setVideoDuration(duration.inMilliseconds / 1000.0);
+        }
+        _audioPlayer!.onPositionChanged.listen((position) {
+          final seconds = position.inMilliseconds / 1000.0;
+          _syncSectionHighlight(seconds);
+          if (_session.isTesting) {
+            _handleTestTime(seconds);
+          }
+        });
+      }
+      
+      _session.setSourceType(
+        _session.sourceType,
+        localFilePath: filePath,
+        fileName: fileName,
+        localDataBytes: fileBytes,
+      );
+      
+      if (mounted) setState(() {});
+    }
   }
 
   Widget _sectionChips() {

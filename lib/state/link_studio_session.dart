@@ -7,8 +7,9 @@ enum LoopHitResult { seekToStart, nextSegment, finished }
 
 /// Holds LinkStudio segment list, selection, and in-app test-playback counters.
 class LinkStudioSession extends ChangeNotifier {
-  LinkStudioSession({double initialDuration = 180})
+  LinkStudioSession({double initialDuration = 180, SourceType sourceType = SourceType.youtube})
     : _videoDuration = initialDuration,
+      _sourceType = sourceType,
       _segments = [
         RoutineSegment(
           id: 'seg_0',
@@ -23,6 +24,10 @@ class LinkStudioSession extends ChangeNotifier {
   int _selectedIndex = 0;
   double _videoDuration;
   int _idSeed = 1;
+  SourceType _sourceType;
+  String? _localFilePath;
+  String? _fileName;
+  List<int>? _localDataBytes;
 
   bool isTesting = false;
   int testSegmentIndex = 0;
@@ -33,6 +38,10 @@ class LinkStudioSession extends ChangeNotifier {
   double get videoDuration => _videoDuration;
   RoutineSegment get active => _segments[_selectedIndex];
   RangeValues get activeRange => RangeValues(active.startSec, active.endSec);
+  SourceType get sourceType => _sourceType;
+  String? get localFilePath => _localFilePath;
+  String? get fileName => _fileName;
+  List<int>? get localDataBytes => _localDataBytes;
 
   static double _defaultEnd(double duration) {
     if (duration <= minGap) return duration;
@@ -49,6 +58,19 @@ class LinkStudioSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSourceType(
+    SourceType type, {
+    String? localFilePath,
+    String? fileName,
+    List<int>? localDataBytes,
+  }) {
+    _sourceType = type;
+    _localFilePath = localFilePath;
+    _fileName = fileName;
+    _localDataBytes = localDataBytes;
+    notifyListeners();
+  }
+
   void selectSegment(int index) {
     if (index < 0 || index >= _segments.length) return;
     _selectedIndex = index;
@@ -57,19 +79,14 @@ class LinkStudioSession extends ChangeNotifier {
 
   void addSegment() {
     final last = _segments.last;
-    final start = last.endSec.clamp(0.0, (_videoDuration - minGap).clamp(0.0, _videoDuration));
-    var end = start + 30;
-    if (end > _videoDuration) {
-      end = _videoDuration;
-    }
-    if (end - start < minGap) {
-      end = (start + minGap).clamp(0.0, _videoDuration);
-    }
     _segments.add(
       RoutineSegment(
         id: 'seg_${_idSeed++}',
-        startSec: start,
-        endSec: end,
+        startSec: last.startSec,
+        endSec: last.endSec,
+        speed: last.speed,
+        loopCount: last.loopCount,
+        delaySec: last.delaySec,
       ),
     );
     _selectedIndex = _segments.length - 1;
@@ -139,10 +156,10 @@ class LinkStudioSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  void beginTest() {
+  void beginTest({int startIndex = 0}) {
     isTesting = true;
-    testSegmentIndex = 0;
-    playsRemaining = _segments[0].loopCount;
+    testSegmentIndex = startIndex.clamp(0, _segments.length - 1);
+    playsRemaining = _segments[testSegmentIndex].loopCount;
     notifyListeners();
   }
 
@@ -196,6 +213,10 @@ class LinkStudioSession extends ChangeNotifier {
         ),
       ),
       createdAt: DateTime.now(),
+      sourceType: _sourceType,
+      localFilePath: _localFilePath,
+      fileName: _fileName,
+      localDataBytes: _localDataBytes,
     );
   }
 

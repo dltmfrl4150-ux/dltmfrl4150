@@ -1,4 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+
+enum SourceType {
+  youtube,
+  localVideo,
+  audio,
+}
 
 const List<double> kPlaybackSpeeds = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0];
 
@@ -93,6 +101,13 @@ class SavedRoutine {
     required this.videoId,
     required this.segments,
     required this.createdAt,
+    this.sourceType = SourceType.youtube,
+    this.localFilePath,
+    this.fileName,
+    this.localDataBytes,
+    this.isFavorite = false,
+    this.authorId = 'me',
+    this.authorName = '나',
   });
 
   final String id;
@@ -101,6 +116,13 @@ class SavedRoutine {
   final String videoId;
   final List<RoutineSegment> segments;
   final DateTime createdAt;
+  final SourceType sourceType;
+  final String? localFilePath;
+  final String? fileName;
+  final List<int>? localDataBytes;
+  final bool isFavorite;
+  final String authorId;
+  final String authorName;
 
   factory SavedRoutine.fromJson(Map<String, dynamic> json) {
     return SavedRoutine(
@@ -112,6 +134,20 @@ class SavedRoutine {
           .map((segment) => RoutineSegment.fromJson(segment as Map<String, dynamic>))
           .toList(),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      sourceType: json['sourceType'] != null 
+          ? SourceType.values.firstWhere(
+              (e) => e.name == json['sourceType'] as String,
+              orElse: () => SourceType.youtube,
+            )
+          : SourceType.youtube,
+      localFilePath: json['localFilePath'] as String?,
+      fileName: json['fileName'] as String?,
+        localDataBytes: json['localDataBytes'] is String
+          ? base64Decode(json['localDataBytes'] as String)
+          : null,
+          isFavorite: json['isFavorite'] as bool? ?? false,
+          authorId: json['authorId'] as String? ?? 'me',
+          authorName: json['authorName'] as String? ?? '나',
     );
   }
 
@@ -122,6 +158,76 @@ class SavedRoutine {
         'videoId': videoId,
         'segments': segments.map((segment) => segment.toJson()).toList(),
         'createdAt': createdAt.toIso8601String(),
+        'sourceType': sourceType.name,
+        'localFilePath': localFilePath,
+        'fileName': fileName,
+        'localDataBytes': localDataBytes == null ? null : base64Encode(localDataBytes!),
+        'isFavorite': isFavorite,
+        'authorId': authorId,
+        'authorName': authorName,
+      };
+
+  SavedRoutine copyWith({
+    bool? isFavorite,
+    String? authorId,
+    String? authorName,
+  }) {
+    return SavedRoutine(
+      id: id,
+      name: name,
+      videoUrl: videoUrl,
+      videoId: videoId,
+      segments: segments,
+      createdAt: createdAt,
+      sourceType: sourceType,
+      localFilePath: localFilePath,
+      fileName: fileName,
+      localDataBytes: localDataBytes,
+      isFavorite: isFavorite ?? this.isFavorite,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+    );
+  }
+}
+
+@immutable
+class PracticeResult {
+  const PracticeResult({
+    required this.id,
+    required this.name,
+    required this.routineId,
+    required this.createdAt,
+    this.recordedPath,
+    this.recordedDataBytes,
+  });
+
+  final String id;
+  final String name;
+  final String routineId;
+  final DateTime createdAt;
+  final String? recordedPath;
+  final List<int>? recordedDataBytes;
+
+  factory PracticeResult.fromJson(Map<String, dynamic> json) {
+    return PracticeResult(
+      id: json['id'] as String? ?? 'practice_${DateTime.now().microsecondsSinceEpoch}',
+      name: json['name'] as String? ?? 'Practice Result',
+      routineId: json['routineId'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      recordedPath: json['recordedPath'] as String?,
+      recordedDataBytes: json['recordedDataBytes'] is String
+          ? base64Decode(json['recordedDataBytes'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'routineId': routineId,
+        'createdAt': createdAt.toIso8601String(),
+        'recordedPath': recordedPath,
+        'recordedDataBytes': recordedDataBytes == null ? null : base64Encode(recordedDataBytes!),
       };
 }
 

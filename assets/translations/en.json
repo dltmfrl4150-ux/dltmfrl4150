@@ -23,7 +23,14 @@
     "start_practice": "Start Now",
     "tab_home": "Home",
   "tab_studio": "Studio",
-  "tab_settings": "Settings"
+  "tab_community": "Community",
+  "tab_settings": "Settings",
+  "create_routine_youtube": "Create with YouTube Link",
+  "create_routine_youtube_subtitle": "Paste YouTube URL to start",
+  "create_routine_video": "Create with Video File",
+  "create_routine_video_subtitle": "Select local video file",
+  "create_routine_audio": "Create with Audio File",
+  "create_routine_audio_subtitle": "Select audio or video for audio mode"
   },
   "library": {
     "title": "My Routine Library",
@@ -57,7 +64,12 @@
     "save": "Save",
     "save_dialog_title": "Save Routine",
     "save_success": "Routine has been saved.",
-    "player_placeholder": "YouTube Player Placeholder"
+    "player_placeholder": "YouTube Player Placeholder",
+    "select_file": "Select File",
+    "file_selected": "File selected",
+    "audio_mode": "Audio Mode",
+    "video_mode": "Video Mode",
+    "change_file": "Change File"
   },
   "player": {
     "get_ready": "Get Ready",

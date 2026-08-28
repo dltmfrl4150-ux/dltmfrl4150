@@ -23,7 +23,14 @@
     "start_practice": "바로 시작",
     "tab_home": "홈",
   "tab_studio": "스튜디오",
-  "tab_settings": "설정"
+  "tab_community": "커뮤니티",
+  "tab_settings": "설정",
+  "create_routine_youtube": "유튜브 링크로 루틴 만들기",
+  "create_routine_youtube_subtitle": "유튜브 URL을 붙여넣어 시작",
+  "create_routine_video": "동영상 파일로 루틴 만들기",
+  "create_routine_video_subtitle": "내 기기의 비디오 파일 선택",
+  "create_routine_audio": "오디오 파일로 루틴 만들기",
+  "create_routine_audio_subtitle": "오디오 또는 비디오의 음성 모드 선택"
   },
   "library": {
     "title": "내 루틴 보관함",
@@ -57,7 +64,12 @@
     "save": "저장",
     "save_dialog_title": "루틴 저장",
     "save_success": "루틴이 저장되었습니다.",
-    "player_placeholder": "YouTube Player Placeholder"
+    "player_placeholder": "YouTube Player Placeholder",
+    "select_file": "파일 선택",
+    "file_selected": "파일 선택됨",
+    "audio_mode": "오디오 모드",
+    "video_mode": "비디오 모드",
+    "change_file": "다른 파일 선택"
   },
   "player": {
     "get_ready": "Get Ready",

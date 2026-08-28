@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,17 +10,22 @@ import '../models/routine_models.dart';
 class RoutineLibrary extends ChangeNotifier {
   static const String _routineStorageKey = 'loopi_saved_routines';
   static const String _groupStorageKey = 'loopi_saved_groups';
+  static const String _practiceStorageKey = 'loopi_practice_results';
 
   final List<SavedRoutine> _routines = [];
   final List<RoutineGroup> _groups = [];
+  final List<PracticeResult> _practiceResults = [];
 
   List<SavedRoutine> get routines => List.unmodifiable(_routines);
   List<RoutineGroup> get groups => List.unmodifiable(_groups);
+  List<PracticeResult> get practiceResults => List.unmodifiable(_practiceResults);
+  List<SavedRoutine> get favoriteRoutines => _routines.where((routine) => routine.isFavorite).toList();
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final savedRoutines = prefs.getStringList(_routineStorageKey) ?? const <String>[];
     final savedGroups = prefs.getStringList(_groupStorageKey) ?? const <String>[];
+    final savedPracticeResults = prefs.getStringList(_practiceStorageKey) ?? const <String>[];
 
     _routines
       ..clear()
@@ -40,6 +46,14 @@ class RoutineLibrary extends ChangeNotifier {
             .map(RoutineGroup.fromJson)
             .toList(),
       );
+            _practiceResults
+          ..clear()
+          ..addAll(
+            savedPracticeResults
+            .map((value) => jsonDecode(value))
+            .whereType<Map<String, dynamic>>()
+            .map(PracticeResult.fromJson),
+          );
     notifyListeners();
   }
 
@@ -52,6 +66,10 @@ class RoutineLibrary extends ChangeNotifier {
     await prefs.setStringList(
       _groupStorageKey,
       _groups.map((group) => jsonEncode(group.toJson())).toList(),
+    );
+    await prefs.setStringList(
+      _practiceStorageKey,
+      _practiceResults.map((result) => jsonEncode(result.toJson())).toList(),
     );
   }
 
@@ -84,6 +102,28 @@ class RoutineLibrary extends ChangeNotifier {
     _routines.insert(0, routine);
     await _persist();
     notifyListeners();
+  }
+
+  Future<void> setFavorite(String id, bool value) async {
+    final index = _routines.indexWhere((routine) => routine.id == id);
+    if (index < 0 || _routines[index].isFavorite == value) return;
+    _routines[index] = _routines[index].copyWith(isFavorite: value);
+    notifyListeners();
+    await Future<void>.microtask(() => _persist());
+  }
+
+  Future<void> savePracticeResult(PracticeResult result) async {
+    _practiceResults.insert(0, result);
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  bool? toggleFavoriteOptimistic(String id) {
+    final index = _routines.indexWhere((routine) => routine.id == id);
+    if (index < 0) return null;
+    final next = !_routines[index].isFavorite;
+    setFavorite(id, next);
+    return next;
   }
 
   Future<void> deleteMany(Iterable<String> ids) async {

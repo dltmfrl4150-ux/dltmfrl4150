@@ -1,15 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/routine_models.dart';
 import '../state/routine_library.dart';
 import '../theme/loopi_colors.dart';
 import '../utils/time_format.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/favorite_icon_button.dart';
 import 'link_studio_screen.dart';
 import 'practice_mode_screen.dart';
+import 'practice_screen.dart';
 
 enum SelectionMode { none, group, delete }
+
+class CommunityPost {
+  CommunityPost({required this.routine, required this.description})
+      : createdAt = DateTime.now();
+
+  final SavedRoutine routine;
+  final String description;
+  final DateTime createdAt;
+
+  String get authorId => routine.authorId;
+  String get authorName => routine.authorName;
+}
+
+class CommunityFeedStore extends ChangeNotifier {
+  final List<CommunityPost> _posts = [];
+
+  List<CommunityPost> get posts => List.unmodifiable(_posts);
+
+  void add(CommunityPost post) {
+    _posts.insert(0, post);
+    notifyListeners();
+  }
+
+  void toggleFavorite(SavedRoutine routine, bool value, RoutineLibrary library, BuildContext context) async {
+    await library.setFavorite(routine.id, value);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.')),
+    );
+  }
+}
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key, required this.library});
@@ -22,28 +56,123 @@ class HomeDashboardScreen extends StatefulWidget {
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   int _tabIndex = 0;
+  SavedRoutine? _selectedPracticeRoutine;
+    Widget? _selectedPracticeView;
+  final CommunityFeedStore _communityFeed = CommunityFeedStore();
 
-  void _openLinkStudio() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => LinkStudioScreen(library: widget.library),
+  Future<void> _shareRoutine(SavedRoutine routine) async {
+    final controller = TextEditingController();
+    final description = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('커뮤니티에 ${routine.name} 공유'),
+        content: TextField(
+          controller: controller,
+          maxLength: 50,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: '루틴을 소개해 주세요',
+            counterText: null,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('커뮤니티에 게시')),
+        ],
       ),
     );
+    controller.dispose();
+    if (description == null) return;
+    _communityFeed.add(CommunityPost(routine: routine, description: description));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('커뮤니티에 게시했습니다.')));
+    }
+  }
+
+  Future<void> _pickRoutineToShare() async {
+    final routines = widget.library.routines;
+    if (routines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('공유할 루틴이 없습니다.')));
+      return;
+    }
+    final routine = await showDialog<SavedRoutine>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('공유할 루틴 선택'),
+        content: SizedBox(
+          width: 420,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: routines.length,
+            itemBuilder: (_, index) => ListTile(
+              leading: const Icon(Icons.play_circle_outline),
+              title: Text(routines[index].name),
+              onTap: () => Navigator.pop(dialogContext, routines[index]),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (routine != null) await _shareRoutine(routine);
+  }
+
+  void _openLinkStudio({
+    SourceType sourceType = SourceType.youtube,
+    PlatformFile? file,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LinkStudioScreen(
+          library: widget.library,
+          sourceType: sourceType,
+          file: file,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickVideoFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
+      _openLinkStudio(sourceType: SourceType.localVideo, file: file);
+    }
+  }
+
+  Future<void> _pickAudioFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'mp4', 'mov', 'webm'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
+      _openLinkStudio(sourceType: SourceType.audio, file: file);
+    }
   }
 
   void _startRoutine(SavedRoutine routine) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PracticeModeScreen(routine: routine),
-      ),
-    );
+    setState(() {
+      _selectedPracticeRoutine = routine;
+      _selectedPracticeView = null;
+      _tabIndex = 3;
+    });
+  }
+
+  void _openPracticeView(Widget view) {
+    setState(() {
+      _selectedPracticeRoutine = null;
+      _selectedPracticeView = view;
+      _tabIndex = 3;
+    });
   }
 
   void _onTabSelected(int index) {
-    if (index == 2) {
-      _openLinkStudio();
-      return;
-    }
     setState(() => _tabIndex = index);
   }
 
@@ -67,35 +196,54 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             icon: const Icon(Icons.notifications_none_rounded),
           ),
           IconButton(
-            onPressed: () => setState(() => _tabIndex = 3),
+            onPressed: () => setState(() => _tabIndex = 4),
             tooltip: '프로필',
             icon: const Icon(Icons.account_circle_outlined),
           ),
+          if (_tabIndex == 4)
+            IconButton(
+              onPressed: _pickRoutineToShare,
+              tooltip: '커뮤니티에 루틴 올리기',
+              icon: const Icon(Icons.cloud_upload_outlined),
+            ),
           const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
         top: false,
         child: IndexedStack(
-          index: _tabIndex == 2 ? 0 : _tabIndex,
+          index: _tabIndex,
           children: [
             _HomeTab(
               library: widget.library,
               onCreateRoutine: _openLinkStudio,
               onStartRoutine: _startRoutine,
+              onCreateVideoRoutine: _pickVideoFile,
+              onCreateAudioRoutine: _pickAudioFile,
+            ),
+            LinkStudioScreen(library: widget.library, embedded: true),
+            CommunityFeedScreen(
+              feed: _communityFeed,
+              library: widget.library,
+              onPlay: _startRoutine,
+            ),
+            PracticeScreen(
+              library: widget.library,
+              selectedRoutine: _selectedPracticeRoutine,
+              selectedView: _selectedPracticeView,
             ),
             _LibraryTab(
               library: widget.library,
-              onCreateRoutine: _openLinkStudio,
               onStartRoutine: _startRoutine,
+              onShareRoutine: _shareRoutine,
+              onFavorite: (routine, value) => _communityFeed.toggleFavorite(routine, value, widget.library, context),
+              onOpenPracticeView: _openPracticeView,
             ),
-            const SizedBox.shrink(),
-            const _SettingsTab(),
           ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _tabIndex == 2 ? 0 : _tabIndex,
+        selectedIndex: _tabIndex,
         onDestinationSelected: _onTabSelected,
         indicatorColor: scheme.primary.withValues(alpha: 0.18),
         destinations: [
@@ -105,24 +253,30 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           label: 'home.tab_home'.tr(), //
         ),
         NavigationDestination(
-          icon: const Icon(Icons.bookmark_outline),
-          selectedIcon: const Icon(Icons.bookmark),
+          icon: const Icon(Icons.movie_creation_outlined),
+          selectedIcon: const Icon(Icons.movie_creation),
+          label: 'home.tab_studio'.tr(),
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.people_outline),
+          selectedIcon: Icon(Icons.people),
+          label: 'home.tab_community'.tr(),
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.fitness_center_outlined),
+          selectedIcon: Icon(Icons.fitness_center),
+          label: '연습',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.bookmark_outline),
+          selectedIcon: Icon(Icons.bookmark),
           label: 'library.title'.tr(),
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.movie_creation_outlined),
-          selectedIcon: Icon(Icons.movie_creation),
-          label: 'home.tab_studio'.tr(), 
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: 'home.tab_settings'.tr(), 
         ),
         ],
       ),
     );
   }
+
 }
 
 class _HomeTab extends StatelessWidget {
@@ -130,11 +284,15 @@ class _HomeTab extends StatelessWidget {
     required this.library,
     required this.onCreateRoutine,
     required this.onStartRoutine,
+    required this.onCreateVideoRoutine,
+    required this.onCreateAudioRoutine,
   });
 
   final RoutineLibrary library;
   final VoidCallback onCreateRoutine;
   final ValueChanged<SavedRoutine> onStartRoutine;
+  final VoidCallback onCreateVideoRoutine;
+  final VoidCallback onCreateAudioRoutine;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +318,20 @@ class _HomeTab extends StatelessWidget {
           builder: (context, _) => _WeeklyStatsCard(routineCount: library.routines.length),
         ),
         const SizedBox(height: 20),
-        _QuickActionCard(onTap: onCreateRoutine),
+        Text(
+          'home.quick_action'.tr(),
+          style: TextStyle(
+            color: scheme.onSurface,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _MediaSourceCards(
+          onYouTubeTap: onCreateRoutine,
+          onVideoTap: onCreateVideoRoutine,
+          onAudioTap: onCreateAudioRoutine,
+        ),
         const SizedBox(height: 28),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -294,46 +465,112 @@ class _StatCell extends StatelessWidget {
   }
 }
 
-class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard({required this.onTap});
+class _MediaSourceCards extends StatelessWidget {
+  const _MediaSourceCards({
+    required this.onYouTubeTap,
+    required this.onVideoTap,
+    required this.onAudioTap,
+  });
 
+  final VoidCallback onYouTubeTap;
+  final VoidCallback onVideoTap;
+  final VoidCallback onAudioTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+        Expanded(
+          child: _MediaSourceCard(
+            icon: Icons.play_circle_rounded,
+            title: 'home.create_routine_youtube'.tr(),
+            subtitle: 'home.create_routine_youtube_subtitle'.tr(),
+            color: LoopiColors.purple,
+            onTap: onYouTubeTap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MediaSourceCard(
+            icon: Icons.videocam_rounded,
+            title: 'home.create_routine_video'.tr(),
+            subtitle: 'home.create_routine_video_subtitle'.tr(),
+            color: LoopiColors.deepPurple,
+            onTap: onVideoTap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MediaSourceCard(
+            icon: Icons.graphic_eq_rounded,
+            title: 'home.create_routine_audio'.tr(),
+            subtitle: 'home.create_routine_audio_subtitle'.tr(),
+            color: LoopiColors.purple.withValues(alpha: 0.8),
+            onTap: onAudioTap,
+          ),
+        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MediaSourceCard extends StatelessWidget {
+  const _MediaSourceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Ink(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: LoopiColors.purple,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
+      borderRadius: BorderRadius.circular(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 120),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'home.quick_action'.tr(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'home.quick_action_subtitle'.tr(),
-                    style: TextStyle(color: Color(0xFFE8E0FF), fontSize: 14),
-                  ),
-                ],
+            Icon(icon, color: Colors.white, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
               ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(color: Color(0xFFE8E0FF), fontSize: 11),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
+          ),
         ),
       ),
     );
@@ -381,12 +618,16 @@ class _RoutineCard extends StatelessWidget {
     required this.onStart,
     this.isSelected = false,
     this.onTap,
+    this.onShare,
+    this.onFavorite,
   });
 
   final SavedRoutine routine;
   final VoidCallback onStart;
   final bool isSelected;
   final VoidCallback? onTap;
+  final VoidCallback? onShare;
+  final ValueChanged<bool>? onFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -417,19 +658,32 @@ class _RoutineCard extends StatelessWidget {
               ),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                'https://img.youtube.com/vi/${routine.videoId}/mqdefault.jpg',
-                width: 72,
-                height: 52,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 72,
-                  height: 52,
-                  color: scheme.surfaceContainerHighest,
-                  alignment: Alignment.center,
-                  child: Icon(Icons.play_circle_fill_rounded, color: LoopiColors.purple),
-                ),
-              ),
+              child: routine.sourceType == SourceType.youtube
+                  ? Image.network(
+                      'https://img.youtube.com/vi/${routine.videoId}/mqdefault.jpg',
+                      width: 72,
+                      height: 52,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 72,
+                        height: 52,
+                        color: scheme.surfaceContainerHighest,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.play_circle_fill_rounded, color: LoopiColors.purple),
+                      ),
+                    )
+                  : Container(
+                      width: 72,
+                      height: 52,
+                      color: scheme.surfaceContainerHighest,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        routine.sourceType == SourceType.audio
+                            ? Icons.graphic_eq_rounded
+                            : Icons.videocam_rounded,
+                        color: LoopiColors.purple,
+                      ),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -451,6 +705,17 @@ class _RoutineCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (onShare != null)
+              IconButton(
+                onPressed: onShare,
+                tooltip: '커뮤니티에 공유',
+                icon: const Icon(Icons.share_outlined),
+              ),
+            if (onFavorite != null)
+              FavoriteButton(
+                initialValue: routine.isFavorite,
+                onChanged: (value) => onFavorite!(value),
+              ),
             if (onTap == null)
               FilledButton(
                 onPressed: onStart,
@@ -471,13 +736,17 @@ class _RoutineCard extends StatelessWidget {
 class _LibraryTab extends StatefulWidget {
   const _LibraryTab({
     required this.library,
-    required this.onCreateRoutine,
     required this.onStartRoutine,
+    required this.onShareRoutine,
+    required this.onFavorite,
+    required this.onOpenPracticeView,
   });
 
   final RoutineLibrary library;
-  final VoidCallback onCreateRoutine;
   final ValueChanged<SavedRoutine> onStartRoutine;
+  final ValueChanged<SavedRoutine> onShareRoutine;
+  final void Function(SavedRoutine routine, bool value) onFavorite;
+  final ValueChanged<Widget> onOpenPracticeView;
 
   @override
   State<_LibraryTab> createState() => _LibraryTabState();
@@ -486,6 +755,7 @@ class _LibraryTab extends StatefulWidget {
 class _LibraryTabState extends State<_LibraryTab> {
   SelectionMode _selectionMode = SelectionMode.none;
   final Set<String> _selectedIds = {};
+  int _librarySection = 0;
 
   void _toggleSelection(String id) {
     setState(() {
@@ -583,7 +853,11 @@ class _LibraryTabState extends State<_LibraryTab> {
         if (totalRoutines.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(24),
-            child: _EmptyRoutineCard(onTap: widget.onCreateRoutine),
+            child: Column(
+              children: [
+                _EmptyRoutineCard(onTap: () {}),
+              ],
+            ),
           );
         }
 
@@ -631,10 +905,59 @@ class _LibraryTabState extends State<_LibraryTab> {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 0, label: Text('내 루틴')),
+                  ButtonSegment(value: 1, label: Text('즐겨찾기')),
+                  ButtonSegment(value: 2, label: Text('연습 기록')),
+                ],
+                selected: {_librarySection},
+                onSelectionChanged: (selection) => setState(() => _librarySection = selection.first),
+              ),
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                 children: [
+                  if (_librarySection == 2)
+                    for (final result in widget.library.practiceResults)
+                      ListTile(
+                        leading: const Icon(Icons.video_library_outlined),
+                        title: Text(result.name),
+                        subtitle: Text('연습 기록 · ${result.createdAt.toLocal()}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          final routine = widget.library.byId(result.routineId);
+                          if (routine != null) {
+                            widget.onOpenPracticeView(
+                              PracticeResultViewer(routine: routine, result: result),
+                            );
+                          }
+                        },
+                      ),
+                  if (_librarySection == 2 && widget.library.practiceResults.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('저장된 연습 기록이 없습니다.'),
+                    ),
+                  if (_librarySection == 1)
+                    for (final routine in widget.library.favoriteRoutines)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RoutineCard(
+                          routine: routine,
+                          onStart: () => widget.onStartRoutine(routine),
+                          onFavorite: (value) => widget.onFavorite(routine, value),
+                        ),
+                      ),
+                  if (_librarySection == 1 && widget.library.favoriteRoutines.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('즐겨찾기한 루틴이 없습니다.'),
+                    ),
+                  if (_librarySection == 0) ...[
                   for (final group in groups)
                     _RoutineGroupCard(
                       group: group,
@@ -669,6 +992,7 @@ class _LibraryTabState extends State<_LibraryTab> {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => PracticeModeScreen(
+                              library: widget.library,
                               routine: playlist.first,
                               routines: playlist,
                               repeatPlaylist: true,
@@ -677,6 +1001,7 @@ class _LibraryTabState extends State<_LibraryTab> {
                         );
                       },
                       onOpenRoutine: widget.onStartRoutine,
+                      onShareRoutine: widget.onShareRoutine,
                     ),
                   if (ungrouped.isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -695,12 +1020,15 @@ class _LibraryTabState extends State<_LibraryTab> {
                         child: _RoutineCard(
                           routine: routine,
                           onStart: () => widget.onStartRoutine(routine),
+                          onShare: () => widget.onShareRoutine(routine),
+                          onFavorite: (value) => widget.onFavorite(routine, value),
                           isSelected: _selectedIds.contains(routine.id),
                           onTap: _selectionMode != SelectionMode.none
                               ? () => _toggleSelection(routine.id)
                               : null,
                         ),
                       ),
+                  ],
                   ],
                 ],
               ),
@@ -722,6 +1050,7 @@ class _RoutineGroupCard extends StatefulWidget {
     required this.onDeleteGroup,
     required this.onPlayGroup,
     required this.onOpenRoutine,
+    required this.onShareRoutine,
   });
 
   final RoutineGroup group;
@@ -732,6 +1061,7 @@ class _RoutineGroupCard extends StatefulWidget {
   final Future<void> Function() onDeleteGroup;
   final VoidCallback onPlayGroup;
   final ValueChanged<SavedRoutine> onOpenRoutine;
+  final ValueChanged<SavedRoutine> onShareRoutine;
 
   @override
   State<_RoutineGroupCard> createState() => _RoutineGroupCardState();
@@ -815,6 +1145,7 @@ class _RoutineGroupCardState extends State<_RoutineGroupCard> {
                     child: _RoutineCard(
                       routine: routine,
                       onStart: () => widget.onOpenRoutine(routine),
+                      onShare: () => widget.onShareRoutine(routine),
                       isSelected: widget.selectedIds.contains(routine.id),
                       onTap: widget.isSelectionMode ? () => widget.onToggleSelection(routine.id) : null,
                     ),
@@ -828,49 +1159,118 @@ class _RoutineGroupCardState extends State<_RoutineGroupCard> {
   }
 }
 
-class _SettingsTab extends StatelessWidget {
-  const _SettingsTab();
+class CommunityFeedScreen extends StatelessWidget {
+  const CommunityFeedScreen({super.key, required this.feed, required this.library, this.onPlay});
+
+  final CommunityFeedStore feed;
+  final RoutineLibrary library;
+  final ValueChanged<SavedRoutine>? onPlay;
+
+  void _play(BuildContext context, SavedRoutine routine) {
+    if (onPlay != null) {
+      onPlay!(routine);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PracticeModeScreen(routine: routine, library: library)));
+  }
+
+  void _openProfile(BuildContext context, CommunityPost post) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => UserProfileRoutinesScreen(
+          authorId: post.authorId,
+          authorName: post.authorName,
+          feed: feed,
+          library: library,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-      children: [
-        ListTile(
-          leading: const Icon(Icons.notifications_outlined),
-          title: Text('settings.notifications'.tr()),
-          subtitle: Text('settings.notifications_subtitle'.tr()),
-        ),
-        ListTile(
-          leading: const Icon(Icons.palette_outlined),
-          title: Text('settings.theme'.tr()),
-          subtitle: Text('settings.theme_subtitle'.tr()),
-        ),
-        Builder(
-          builder: (context) => ListTile(
-            leading: const Icon(Icons.language),
-            title: Text('settings.language'.tr()),
-            subtitle: Text('settings.language_subtitle'.tr()),
-            trailing: DropdownButton<Locale>(
-              value: context.locale,
-              items: const [
-                DropdownMenuItem(value: Locale('en'), child: Text('English')),
-                DropdownMenuItem(value: Locale('ko'), child: Text('한국어')),
-              ],
-              onChanged: (locale) {
-                if (locale != null) {
-                  context.setLocale(locale);
-                }
+    return AnimatedBuilder(
+      animation: feed,
+      builder: (context, _) {
+        if (feed.posts.isEmpty) {
+          return const Center(child: Text('아직 공유된 루틴이 없습니다.'));
+        }
+        return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+              itemCount: feed.posts.length,
+              itemBuilder: (_, index) {
+                final post = feed.posts[index];
+                final routine = library.byId(post.routine.id) ?? post.routine;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    onTap: () => _play(context, routine),
+                    leading: IconButton(
+                      onPressed: () => _play(context, routine),
+                      tooltip: '재생',
+                      icon: const Icon(Icons.play_circle_fill, size: 34),
+                    ),
+                    title: Text(routine.name),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextButton(
+                          onPressed: () => _openProfile(context, post),
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                          child: Text('@${post.authorName}'),
+                        ),
+                        Text(post.description.isEmpty ? '설명 없음' : post.description),
+                      ],
+                    ),
+                    trailing: FavoriteButton(
+                      initialValue: routine.isFavorite,
+                      onChanged: (value) => feed.toggleFavorite(routine, value, library, context),
+                    ),
+                  ),
+                );
               },
-            ),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.info_outline),
-          title: Text('settings.app_info'.tr()),
-          subtitle: Text('settings.app_info_subtitle'.tr()),
-        ),
-      ],
+        );
+      },
     );
   }
 }
+
+class UserProfileRoutinesScreen extends StatelessWidget {
+  const UserProfileRoutinesScreen({
+    super.key,
+    required this.authorId,
+    required this.authorName,
+    required this.feed,
+    required this.library,
+  });
+
+  final String authorId;
+  final String authorName;
+  final CommunityFeedStore feed;
+  final RoutineLibrary library;
+
+  @override
+  Widget build(BuildContext context) {
+    final posts = feed.posts.where((post) => post.authorId == authorId).toList();
+    return Scaffold(
+      appBar: AppBar(title: Text('@$authorName')),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          final post = posts[index];
+          final routine = library.byId(post.routine.id) ?? post.routine;
+          return ListTile(
+            leading: const Icon(Icons.play_circle_outline),
+            title: Text(routine.name),
+            subtitle: Text(post.description),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => PracticeModeScreen(routine: routine, library: library)),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
